@@ -1,0 +1,962 @@
+<!--
+  Cell Stock Manager
+  Copyright (c) 2026 YuChiao Lin
+  Licensed under the MIT License. See LICENSE file in the project root for details.
+-->
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>細胞凍管管理系統 / Cell Stock Manager</title>
+<link rel="stylesheet" href="assets/css/cell-stock-manager.css?v=20260709-b">
+</head>
+<body>
+<header>
+  <div class="logo">CELL STOCK<span> / </span>細胞凍管管理</div>
+  <nav class="nav-tabs">
+    <button type="button" class="nav-tab ac tive" onclick="switchPage('search')" data-i18n="nav_search">&#128269; 查詢 / 存取</button>
+    <button type="button" class="nav-tab reg-tab" onclick="switchPage('register')" data-i18n="nav_register">&#9672; 登錄新細胞系</button>
+    <button type="button" class="nav-tab" onclick="switchPage('space')" data-i18n="nav_space">&#10052; 空位查詢</button>
+    <button type="button" class="nav-tab" onclick="switchPage('log')" data-i18n="nav_log">&#128203; 操作記錄</button>
+    <button type="button" class="nav-tab issue-nav-tab" onclick="switchPage('issues')"><span data-i18n="nav_issues">異常待辦</span><span class="issue-badge" id="issue-badge" style="display:none">0</span></button>
+    <button type="button" class="nav-tab" onclick="openAdminModal('maint')" data-i18n="nav_maint">&#9881; 維護模式</button>
+  </nav>
+  <div class="hdr-right">
+    <button class="sm-btn issue-report-btn" onclick="openIssueReportModal()" data-i18n="btn_report_issue">回報異常</button>
+    <button class="sm-btn" id="lang-toggle" data-lang-toggle onclick="toggleLang()" title="Switch Language">EN</button>
+    <div class="user-badge" onclick="openNameModal(true)" style="cursor:pointer;user-select:none" data-i18n-title="title_change_name" title="點擊更改姓名">
+      <div class="user-dot"></div>
+      <span id="username-display">未連線</span>
+      <span style="font-size:10px;color:var(--text-dim);margin-left:2px">&#9998;</span>
+    </div>
+  </div>
+</header>
+<div class="lab-banner" id="lab-banner">FCT lab</div>
+
+<!-- PAGE 1: Search / Take / Store -->
+<div class="page active" id="page-search">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="section-title" style="margin-bottom:0">搜尋細胞系 / Search Cell Line</div>
+    <div style="display:flex;gap:8px">
+      <button class="sm-btn" onclick="openAdminModal('import')" data-i18n="btn_import_csv" style="border-color:var(--purple);color:var(--purple);padding:6px 14px;font-size:12px">&#8679; 匯入 CSV</button>
+      <button class="sm-btn" onclick="openAdminModal('cells')" data-i18n="btn_export_csv" style="border-color:var(--accent);color:var(--accent);padding:6px 14px;font-size:12px">&#8681; 匯出 CSV</button>
+    </div>
+  </div>
+  <div class="cart-page-hint" data-i18n="cart_page_hint">&#128722; 一次要取出多種細胞系？可以先逐一「加入購物車」，最後點右下角的購物車圖示一次結帳取出。</div>
+    <div class="history-bar">
+    <button class="hist-btn" id="back-btn" data-i18n="btn_history_back" data-i18n-title="title_prev_step" title="上一步">&#9664; 上一步</button>
+    <button class="hist-btn" id="fwd-btn" data-i18n="btn_history_fwd" data-i18n-title="title_next_step" title="下一步">下一步 &#9654;</button>
+    <button class="hist-btn" onclick="resetSearch()" data-i18n="btn_history_reset" data-i18n-title="title_new_search" title="重新搜尋">&#128269; 重新搜尋</button>
+    <span class="hist-crumbs" id="hist-crumbs"></span>
+  </div>
+  <div class="search-wrap">
+    <input class="search-input" id="search-input" data-i18n-placeholder="ph_search_input" placeholder="輸入細胞系名稱，例如：HEK293T、SAS、HeLa" oninput="onSearch(this.value)" autocomplete="off">
+    <span class="search-icon">&#128269;</span>
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <div class="cell-card" id="cell-card">
+    <div class="cch">
+      <div>
+        <div class="cell-name" id="card-name">&#8212;</div>
+        <div class="cell-sub" id="card-sub">&#8212;</div>
+      </div>
+      <div class="stock-badge">
+        <div class="stock-lbl" data-i18n="lbl_stock">庫存凍管</div>
+        <div id="card-stock">&#8212;</div>
+      </div>
+    </div>
+    <div class="info-grid card-primary-grid">
+      <div class="info-item"><div class="info-label" data-i18n="lbl_record_operator">存入 / 登錄人</div><div class="info-val" id="card-operator">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_passage">Passage 數</div><div class="info-val mono" id="card-passage">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_source">來源 SOURCE</div><div class="info-val" id="card-source">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_record_date">存入 / 登錄日期</div><div class="info-val mono" id="card-operation-date">&#8212;</div></div>
+    </div>
+    <div class="card-more">
+      <button type="button" class="btn-more" id="card-more-btn" onclick="toggleCardDetails()" data-i18n="btn_show_more">查看更多</button>
+    </div>
+    <div class="info-grid card-detail-grid" id="card-details">
+      <div class="info-item"><div class="info-label" data-i18n="lbl_species">物種 SPECIES</div><div class="info-val" id="card-species">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_tissue">組織來源 TISSUE</div><div class="info-val" id="card-tissue">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_genotype">基因型 GENOTYPE</div><div class="info-val" id="card-genotype">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_geno_detail">改造細節 DETAIL</div><div class="info-val" id="card-geno-detail">&#8212;</div></div>
+      <div class="info-item full-w" style="border-bottom:1px solid var(--border)">
+        <div class="info-label" style="margin-bottom:8px" data-i18n="lbl_locations">凍存位置 LOCATIONS（點選取出/存入後顯示）</div>
+        <div id="card-locs">&#8212;</div>
+      </div>
+      <div class="info-item" style="border-top:1px solid var(--accent2-dim)"><div class="info-label" style="color:var(--accent2)" data-i18n="lbl_medium">培養基 MEDIUM</div><div class="info-val" id="card-medium">&#8212;</div></div>
+      <div class="info-item" style="border-top:1px solid var(--accent2-dim)"><div class="info-label" style="color:var(--accent2)" data-i18n="lbl_serum">血清 SERUM</div><div class="info-val" id="card-serum">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" style="color:var(--accent2)" data-i18n="lbl_abx">抗生素 ANTIBIOTICS</div><div class="info-val" id="card-abx">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" style="color:var(--accent2)" data-i18n="lbl_selection">選擇壓力 SELECTION</div><div class="info-val" id="card-selection">&#8212;</div></div>
+      <div class="info-item full-w"><div class="info-label" style="color:var(--accent2)" data-i18n="lbl_cryo">凍存液 CRYOPROTECTANT</div><div class="info-val" id="card-cryo">&#8212;</div></div>
+      <div class="info-item full-w"><div class="info-label" data-i18n="lbl_notes">細胞特性說明 DESCRIPTION</div><div class="info-val" id="card-notes" style="white-space:pre-wrap">&#8212;</div></div>
+      <div class="info-item full-w"><div class="info-label" data-i18n="lbl_culture_notes">培養注意事項 CULTURE NOTES</div><div class="info-val" id="card-culture-notes" style="white-space:pre-wrap">&#8212;</div></div>
+      <div class="info-item full-w" id="card-qc-row"><div class="info-label" data-i18n="lbl_qc">QC 結果</div><div class="info-val" id="card-qc">&#8212;</div></div>
+      <div class="info-item full-w"><div class="info-label" data-i18n="lbl_qc_notes">QC 備註</div><div class="info-val" id="card-qc-notes" style="white-space:pre-wrap">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_registrant">登錄人員</div><div class="info-val" id="card-registrant">&#8212;</div></div>
+      <div class="info-item"><div class="info-label" data-i18n="lbl_reg_date">登錄日期</div><div class="info-val mono" id="card-reg-date">&#8212;</div></div>
+    </div>
+
+    <div class="action-panel" id="action-panel">
+      <div class="action-hint" data-i18n="hint_action">&#9658; 點擊操作後，位置才會顯示，並自動記錄</div>
+      <div class="action-btns">
+        <button class="action-btn take" onclick="openForm('take')" data-i18n="btn_take">&#10052; 取出凍管</button>
+        <button class="action-btn cart" onclick="openCartAddModal()" data-i18n="btn_add_cart">&#128722; 加入購物車</button>
+      </div>
+      <div style="text-align:right;margin-top:8px">
+        <a href="javascript:void(0)" class="admin-store-link" onclick="openStoreAdmin()" data-i18n="btn_store_admin">＋ 補登庫存（管理員）</a>
+      </div>
+    </div>
+
+    <div class="form-panel" id="form-panel">
+      <div class="form-hdr">
+        <div class="form-type-lbl" id="form-type-lbl"></div>
+        <button class="close-btn" onclick="closeForm()">&#10005;</button>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="label_operator">操作人員 OPERATOR</label>
+          <input class="form-input" id="f-operator" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="label_qty_from_slots">數量（支）— 由格子選取決定</label>
+          <input class="form-input" id="f-qty" type="number" min="0" value="0" readonly
+            style="background:var(--surface2);color:var(--text-dim);cursor:not-allowed">
+        </div>
+        <div class="form-group full" id="loc-sel-group">
+          <label class="form-label" data-i18n="label_location_required">位置 LOCATION *</label>
+          <select class="form-select" id="f-loc-select" onchange="onLocSelect()"></select>
+        </div>
+        <div class="form-group" id="new-loc-dewar-grp" style="display:none">
+          <label class="form-label" data-i18n="label_dewar">液態氮桶 DEWAR</label>
+          <select class="form-select" id="f-new-dewar" onchange="updateNewLocGrid()">
+            <option value="" data-i18n="opt_choose">請選擇</option>
+            <option>Dewar 1</option>
+          </select>
+        </div>
+        <div class="form-group" id="new-loc-rack-grp" style="display:none">
+          <label class="form-label" data-i18n="label_rack">架子 RACK</label>
+          <select class="form-select" id="f-new-rack" onchange="updateNewLocGrid()">
+            <option value="" data-i18n="opt_choose">請選擇</option>
+          </select>
+        </div>
+        <div class="form-group" id="new-loc-box-grp" style="display:none">
+          <label class="form-label">Box</label>
+          <select class="form-select" id="f-new-box" onchange="updateNewLocGrid()">
+            <option value="" data-i18n="opt_choose">請選擇</option>
+          </select>
+        </div>
+        <div class="box-grid-wrap form-group" id="pos-picker" style="display:none">
+          <div class="box-grid-lbl" id="box-grid-lbl" data-i18n="label_location_required">選擇位置</div>
+          <div class="box-grid" id="box-grid"></div>
+          <div class="hint" id="sel-pos-lbl" data-i18n="selection_none">尚未選擇位置</div>
+        </div>
+        <div class="form-group full" id="purpose-group">
+          <label class="form-label" data-i18n="label_purpose">用途 / 實驗目的 PURPOSE（選填）</label>
+          <textarea class="form-textarea" id="f-purpose" placeholder="例：Western Blot for STIM1、MCU knockdown experiment"></textarea>
+        </div>
+        <div class="form-group full">
+          <label class="form-label" data-i18n="label_notes_optional">備註 NOTES（選填）</label>
+          <input class="form-input" id="f-notes" data-i18n-placeholder="ph_action_notes" placeholder="例：凍管外觀正常、解凍後存活率 >90%">
+        </div>
+        <div class="form-group full" id="store-batch-group" style="display:none;border-top:1px solid var(--border);padding-top:12px">
+          <div class="form-label" style="margin-bottom:8px;color:var(--accent2)" data-i18n="store_batch_title">新存入批次資訊（選填）</div>
+          <div class="hint" style="margin-bottom:12px" data-i18n="store_batch_hint">留空欄位會沿用目前細胞資料；若填寫 Passage，系統會以新批次紀錄存入。</div>
+          <div class="form-grid">
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_passage">新批次 Passage</label><input class="form-input" id="f-store-passage" placeholder="例：P18 或 18"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_source">來源 SOURCE</label><input class="form-input" id="f-store-source" placeholder="例：FCT lab / ATCC"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_species">物種 SPECIES</label><input class="form-input" id="f-store-species" placeholder="例：Human"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_tissue">組織來源 TISSUE</label><input class="form-input" id="f-store-tissue" placeholder="例：Kidney"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_genotype">基因型 / MODIFICATION</label><input class="form-input" id="f-store-genotype" placeholder="例：Wild-type, CRISPR KO"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_detail">改造細節 DETAIL</label><input class="form-input" id="f-store-geno-detail" placeholder="例：STIM1-KO clone #7"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_medium">培養基 MEDIUM</label><input class="form-input" id="f-store-medium" placeholder="例：DMEM"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_serum">血清 SERUM</label><input class="form-input" id="f-store-serum" placeholder="例：10% FBS"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_abx">抗生素 ANTIBIOTICS</label><input class="form-input" id="f-store-abx" placeholder="例：100 U/mL Pen/Strep"></div>
+            <div class="form-group"><label class="form-label" data-i18n="store_batch_selection">選擇壓力 SELECTION</label><input class="form-input" id="f-store-selection" placeholder="例：None, 1 μg/mL Puromycin"></div>
+            <div class="form-group full"><label class="form-label" data-i18n="store_batch_cryo">凍存液 CRYOPROTECTANT</label><input class="form-input" id="f-store-cryo" placeholder="例：7% DMSO + DMEM"></div>
+            <div class="form-group full"><label class="form-label" data-i18n="store_batch_notes">細胞說明 DESCRIPTION</label><textarea class="form-textarea" id="f-store-notes" data-i18n-placeholder="store_batch_notes_ph" placeholder="例：此批次重新凍管於 Passage 18，供後續實驗使用"></textarea></div>
+            <div class="form-group full"><label class="form-label" data-i18n="store_batch_culture_notes">培養注意事項 CULTURE NOTES</label><textarea class="form-textarea" id="f-store-culture-notes" data-i18n-placeholder="store_batch_culture_notes_ph" placeholder="例：傳代比例 1:5；解凍後需先換液去除 DMSO"></textarea></div>
+          </div>
+        </div>
+      </div>
+      <button class="submit-btn take" id="submit-btn" onclick="submitAction()" data-i18n="btn_confirm_submit">確認送出</button>
+    </div>
+  </div>
+</div>
+<!-- PAGE 2: Register New Cell Line -->
+<div class="page" id="page-register">
+  <div class="reg-title" data-i18n="reg_title">&#9672; 登錄新細胞系 / Register New Cell Line</div>
+  <div class="reg-subtitle" data-i18n="reg_subtitle">首次建立細胞系凍管庫存，請完整填寫以下 5 個步驟</div>
+  <div class="steps-bar">
+    <div class="step-item"><div class="step-dot active" id="sd1">1</div><span class="step-lbl active" id="sl1" data-i18n="reg_step1">基本資料</span></div>
+    <div class="step-line" id="sln1"></div>
+    <div class="step-item"><div class="step-dot" id="sd2">2</div><span class="step-lbl" id="sl2" data-i18n="reg_step2">培養條件</span></div>
+    <div class="step-line" id="sln2"></div>
+    <div class="step-item"><div class="step-dot" id="sd3">3</div><span class="step-lbl" id="sl3" data-i18n="reg_step3">品質檢測</span></div>
+    <div class="step-line" id="sln3"></div>
+    <div class="step-item"><div class="step-dot" id="sd4">4</div><span class="step-lbl" id="sl4" data-i18n="reg_step4">凍存位置</span></div>
+    <div class="step-line" id="sln4"></div>
+    <div class="step-item"><div class="step-dot" id="sd5">5</div><span class="step-lbl" id="sl5" data-i18n="reg_step5">確認送出</span></div>
+  </div>
+  <!-- Step 1 -->
+  <div class="reg-section active" id="rs1">
+    <div class="reg-section-title" data-i18n="reg_section1">步驟 1 &#8212; 基本資料 / Basic Information</div>
+    <div class="form-grid">
+      <div class="form-group" style="position:relative"><label class="form-label" data-i18n="label_cell_name">細胞系名稱 CELL LINE NAME *</label><input class="form-input" id="r-name" data-i18n-placeholder="ph_cell_name" placeholder="例：HEK293T、A549-STIM1KO" autocomplete="off"><div id="r-name-suggestions" class="name-suggestions"></div></div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_source">來源 SOURCE *</label>
+        <select class="form-select" id="r-source" onchange="toggleSourceOther()">
+          <option data-i18n="opt_atcc_default">ATCC (預設)</option>
+          <option>DSMZ</option><option>BCRC</option>
+          <option data-i18n="opt_lab_stock">實驗室庫存凍回</option>
+          <option data-i18n="opt_lab_self">實驗室自行建立</option>
+          <option value="其他實驗室贈送" data-i18n="opt_other_lab">其他實驗室贈送</option>
+          <option value="商業購買" data-i18n="opt_commercial">商業購買</option>
+        </select>
+        <div id="r-source-other-group" style="display:none;margin-top:6px">
+          <label class="form-label" id="r-source-other-lbl">實驗室名稱 / 指導教授</label>
+          <input class="form-input other-input" id="r-source-other" data-i18n-placeholder="ph_source_lab" placeholder="例：王淑惠老師實驗室">
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label" data-i18n="label_species_required">物種 SPECIES *</label>
+        <select class="form-select" id="r-species"><option data-i18n="opt_human">Human（人類）</option><option data-i18n="opt_mouse">Mouse（小鼠）</option><option data-i18n="opt_rat">Rat（大鼠）</option><option>Other</option></select></div>
+      <div class="form-group"><label class="form-label" data-i18n="label_tissue">組織來源 TISSUE</label><input class="form-input" id="r-tissue" data-i18n-placeholder="ph_tissue" placeholder="例：Kidney, Lung, Breast"></div>
+      <div class="form-group"><label class="form-label" data-i18n="label_modification">基因改造類型 MODIFICATION</label>
+        <select class="form-select" id="r-genotype"><option data-i18n="opt_wild_type">Wild-type（未改造）</option><option>Stable overexpression</option><option>CRISPR Knockout</option><option>CRISPR Knock-in</option><option>shRNA knockdown</option><option data-i18n="opt_other">其他</option></select></div>
+      <div class="form-group"><label class="form-label" data-i18n="label_detail">改造細節 DETAIL</label><input class="form-input" id="r-geno-detail" data-i18n-placeholder="ph_detail" placeholder="例：STIM1-KO, MFN2-shRNA #3"></div>
+      <div class="form-group passage-field" id="passage-field-wrap">
+        <label class="form-label" data-i18n="label_passage_required">&#9888; 凍存 Passage 數 PASSAGE *</label>
+        <input class="form-input" id="r-passage" type="number" min="0" placeholder="例：15" oninput="updatePassageFieldState()">
+        <span class="passage-hint" data-i18n="passage_hint">&#9888; 請務必填寫！Passage 數是追蹤細胞品質的關鍵資訊</span>
+      </div>
+      <div class="form-group"><label class="form-label" data-i18n="label_registered_by">登記人 REGISTERED BY</label><input class="form-input" id="r-registrant" readonly></div>
+      <div class="form-group full"><label class="form-label" data-i18n="label_description">細胞特性說明 DESCRIPTION</label><textarea class="form-textarea" id="r-desc" data-i18n-placeholder="ph_description" placeholder="例：此細胞系穩定表達 mCherry-STIM1，於 RPMI 中生長較佳"></textarea></div>
+    </div>
+    <div class="reg-nav"><div></div><div class="reg-nav-r"><button class="btn-purple" onclick="goStep(2)" data-i18n="btn_next">下一步 &#8594;</button></div></div>
+  </div>
+  <!-- Step 2 -->
+  <div class="reg-section" id="rs2">
+    <div class="reg-section-title" data-i18n="reg_section2">步驟 2 &#8212; 培養條件 / Culture Conditions</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_medium_required">培養基 MEDIUM *</label>
+        <select class="form-select" id="r-medium" onchange="toggleOther('r-medium','r-medium-other')">
+          <option data-i18n="opt_dmem_default">DMEM (預設)</option><option>DMEM/F-12</option>
+          <option>RPMI-1640</option><option>MEM</option><option>McCoy's 5A</option><option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+        </select>
+        <input class="form-input other-input" id="r-medium-other" data-i18n-placeholder="ph_other_medium" placeholder="請輸入培養基名稱" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_serum_required">血清 SERUM *</label>
+        <select class="form-select" id="r-serum" onchange="toggleOther('r-serum','r-serum-other')">
+          <option value="10% FBS" data-i18n="opt_serum_default">10% FBS（預設）</option><option value="5% FBS">5% FBS</option>
+          <option value="20% FBS">20% FBS</option><option value="No serum" data-i18n="opt_no_serum">無血清</option><option value="other" data-i18n="opt_other">其他</option>
+        </select>
+        <input class="form-input other-input" id="r-serum-other" data-i18n-placeholder="ph_other_serum" placeholder="請輸入血清條件" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_antibiotics">抗生素 ANTIBIOTICS</label>
+        <select class="form-select" id="r-abx" onchange="toggleOther('r-abx','r-abx-other')">
+          <option value="100 U/mL Pen/Strep" data-i18n="opt_abx_default">100 U/mL Pen/Strep（預設）</option>
+          <option value="None" data-i18n="opt_none">不使用</option><option value="other" data-i18n="opt_other">其他</option>
+        </select>
+        <input class="form-input other-input" id="r-abx-other" data-i18n-placeholder="ph_other_abx" placeholder="請輸入抗生素條件" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_selection_required">篩選 SELECTION *</label>
+        <select class="form-select" id="r-sel" onchange="toggleOther('r-sel','r-sel-other')">
+          <option value="" data-i18n="opt_choose">請選擇</option><option value="None" data-i18n="opt_none">不使用</option>
+          <option value="1 μg/mL Puromycin">1 μg/mL Puromycin</option>
+          <option value="500 μg/mL G418">500 μg/mL G418</option>
+          <option value="10 μg/mL Blasticidin">10 μg/mL Blasticidin</option>
+          <option value="200 μg/mL Hygromycin">200 μg/mL Hygromycin</option>
+          <option value="other" data-i18n="opt_other">其他</option>
+        </select>
+        <input class="form-input other-input" id="r-sel-other" data-i18n-placeholder="ph_other_selection" placeholder="請輸入選擇壓力條件" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group"><label class="form-label" data-i18n="label_temp">溫度 TEMP</label><input class="form-input" id="r-temp" value="37°C"></div>
+      <div class="form-group"><label class="form-label" data-i18n="label_co2">CO&#8322; 濃度</label><input class="form-input" id="r-co2" value="5%"></div>
+      <div class="form-group full">
+        <label class="form-label" data-i18n="label_cryo_required">凍存液配方 CRYOPROTECTANT *</label>
+        <select class="form-select" id="r-cryo" onchange="toggleOther('r-cryo','r-cryo-other')">
+          <option value="7% DMSO + DMEM" data-i18n="opt_cryo_default">7% DMSO + DMEM（預設）</option>
+          <option value="10% DMSO + DMEM">10% DMSO + DMEM</option>
+          <option value="90% FBS + 10% DMSO">90% FBS + 10% DMSO</option>
+          <option value="BAMBANKER">BAMBANKER</option><option value="CryoStor CS10">CryoStor CS10</option>
+          <option value="other" data-i18n="opt_other">其他</option>
+        </select>
+        <input class="form-input other-input" id="r-cryo-other" data-i18n-placeholder="ph_other_cryo" placeholder="請輸入凍存液配方" style="display:none;margin-top:6px">
+      </div>
+      <div class="form-group full"><label class="form-label" data-i18n="label_culture_notes">培養特殊注意事項 SPECIAL NOTES</label><textarea class="form-textarea" id="r-culture-notes" data-i18n-placeholder="ph_culture_notes" placeholder="例：傳代比例 1:5；解凍後需先換液去除 DMSO"></textarea></div>
+    </div>
+    <div class="reg-nav"><div><button class="btn-outline" onclick="goStep(1)" data-i18n="btn_prev">&#8592; 上一步</button></div><div class="reg-nav-r"><button class="btn-purple" onclick="goStep(3)" data-i18n="btn_next">下一步 &#8594;</button></div></div>
+  </div>
+  <!-- Step 3 -->
+  <div class="reg-section" id="rs3">
+    <div class="reg-section-title" data-i18n="reg_section3">步驟 3 &#8212; 品質檢測結果 / QC Results</div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px" data-i18n="reg_qc_desc">請標記每項品管結果。若尚未進行，選「N/A」。</p>
+    <div id="qc-list"></div>
+    <div class="divider"></div>
+    <div class="form-group"><label class="form-label" data-i18n="lbl_qc_notes">品質備註 QC NOTES</label><textarea class="form-textarea" id="r-qc-notes" data-i18n-placeholder="ph_qc_notes" placeholder="例：Mycoplasma 由 PCR 確認陰性；STR profiling 比對 ATCC 相符率 98%"></textarea></div>
+    <div class="reg-nav"><div><button class="btn-outline" onclick="goStep(2)" data-i18n="btn_prev">&#8592; 上一步</button></div><div class="reg-nav-r"><button class="btn-purple" onclick="goStep(4)" data-i18n="btn_next">下一步 &#8594;</button></div></div>
+  </div>
+  <!-- Step 4 -->
+  <div class="reg-section" id="rs4">
+    <div class="reg-section-title" data-i18n="reg_section4">步驟 4 &#8212; 凍存位置與數量 / Storage Location</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_dewar_required">液態氮桶 DEWAR *</label>
+        <select class="form-select" id="r-dewar" onchange="toggleOther('r-dewar','r-dewar-other');buildRegBoxGrid()">
+          <option value="" data-i18n="opt_choose">請選擇</option>
+          <option value="Dewar 1">Dewar 1</option>
+          <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+        </select>
+        <input class="form-input other-input" id="r-dewar-other" data-i18n-placeholder="ph_other_dewar" placeholder="請輸入液態氮桶編號" style="display:none;margin-top:6px" oninput="buildRegBoxGrid()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_rack_required">架子 RACK *</label>
+        <select class="form-select" id="r-rack" onchange="toggleOther('r-rack','r-rack-other');buildRegBoxGrid()">
+          <option value="" data-i18n="opt_choose">請選擇</option>
+          <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+        </select>
+        <input class="form-input other-input" id="r-rack-other" data-i18n-placeholder="ph_other_rack" placeholder="請輸入架子編號" style="display:none;margin-top:6px" oninput="buildRegBoxGrid()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_box_required">Box *</label>
+        <select class="form-select" id="r-box" onchange="toggleOther('r-box','r-box-other');buildRegBoxGrid()">
+          <option value="" data-i18n="opt_choose">請選擇</option>
+          <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+        </select>
+        <input class="form-input other-input" id="r-box-other" data-i18n-placeholder="ph_other_box" placeholder="請輸入 Box 編號" style="display:none;margin-top:6px" oninput="buildRegBoxGrid()">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="label_stock_from_slots">凍管數量（由格子選取決定）</label>
+        <input class="form-input" id="r-stock" type="number" min="0" value="0" readonly
+          style="background:var(--surface2);color:var(--text-dim);cursor:not-allowed">
+      </div>
+      <div class="form-group full" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn-find-slot" onclick="findEmptySlotForReg()" data-i18n="btn_find_slot">&#9654; 尋找空位</button>
+        <button type="button" class="btn-find-slot" id="btn-find-next-slot" onclick="findNextEmptySlotForReg()" data-i18n="btn_find_next_slot" style="display:none;border-color:var(--accent2);color:var(--accent2);background:rgba(96,165,250,.07)">&#9654;&#9654; 下一個空位</button>
+        <span style="font-size:12px;color:var(--text-dim);font-family:var(--mono)" data-i18n="find_slot_hint">自動選擇有空格的 Box</span>
+      </div>
+      <div class="box-grid-wrap form-group">
+        <div class="box-grid-lbl" data-i18n="reg_grid_label">點選凍管格子（紅色 = 已被其他細胞佔用，不可選）</div>
+        <div class="box-grid" id="reg-box-grid"></div>
+        <div class="hint" id="reg-pos-lbl" data-i18n="reg_pos_empty">請先選擇 Dewar / Rack / Box，再點選格子</div>
+      </div>
+    </div>
+    <div class="reg-nav"><div><button class="btn-outline" onclick="goStep(3)" data-i18n="btn_prev">&#8592; 上一步</button></div><div class="reg-nav-r"><button class="btn-purple" onclick="goStep(5)" data-i18n="btn_next">下一步 &#8594;</button></div></div>
+  </div>
+  <!-- Step 5 -->
+  <div class="reg-section" id="rs5">
+    <div class="reg-section-title" data-i18n="reg_section5">步驟 5 &#8212; 確認資料後送出 / Review &amp; Submit</div>
+    <table class="review-table" id="review-table"></table>
+    <div class="hint" style="margin-top:12px" data-i18n="reg_review_hint">確認無誤後送出，資料將儲存於本系統。</div>
+    <div class="reg-nav">
+      <div><button class="btn-outline" onclick="goStep(4)" data-i18n="btn_prev">&#8592; 上一步</button></div>
+      <div class="reg-nav-r">
+        <button class="btn-outline" onclick="resetReg()" data-i18n="btn_reset">重新填寫</button>
+        <button class="btn-purple" onclick="submitRegister()" data-i18n="btn_submit">&#10003; 確認送出</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- PAGE 4: Space Availability -->
+<div class="page" id="page-space">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <div class="section-title" style="margin-bottom:0">空位查詢 / Box Availability</div>
+  </div>
+  <div class="space-summary" id="space-summary"></div>
+  <div id="space-content"></div>
+</div>
+
+<!-- PAGE 3: Log -->
+<div class="page" id="page-log">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="section-title" style="margin-bottom:0">所有操作記錄 / All Activity Logs</div>
+    <button class="sm-btn" onclick="openAdminModal('log')" data-i18n="btn_export_csv" style="border-color:var(--accent);color:var(--accent);padding:6px 14px;font-size:12px">&#8681; 匯出 CSV</button>
+  </div>
+  <table class="log-table">
+    <thead><tr><th data-i18n="log_th_type">操作</th><th data-i18n="log_th_cell">細胞系</th><th data-i18n="log_th_qty">數量</th><th data-i18n="log_th_operator">人員</th><th data-i18n="log_th_time">時間</th><th data-i18n="log_th_purpose">用途 / 備註</th></tr></thead>
+    <tbody id="global-log"></tbody>
+  </table>
+  <div id="log-pagination" style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:16px;font-size:13px"></div>
+</div>
+
+<!-- PAGE 5: Issue Queue -->
+<div class="page" id="page-issues">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div>
+      <div class="section-title" style="margin-bottom:4px" data-i18n="issue_page_title">異常待辦 / Issue Queue</div>
+      <div class="hint" data-i18n="issue_page_hint">Operator 回報的位置異常會集中在這裡，由管理員核實後更新狀態。</div>
+    </div>
+    <button class="sm-btn issue-report-btn" onclick="openIssueReportModal()" data-i18n="btn_new_issue">新增回報</button>
+  </div>
+  <div class="issue-summary" id="issue-summary"></div>
+  <div class="issue-list" id="issue-list"></div>
+</div>
+
+<div class="page" id="page-maintenance">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="section-title" style="margin-bottom:0" data-i18n="maint_title">維護模式 / Maintenance Mode</div>
+    <div>
+      <button class="sm-btn" onclick="openChangePasswordModal()" data-i18n="btn_change_password" style="border-color:var(--accent1);color:var(--accent1);padding:6px 14px;font-size:12px;margin-right:8px">變更密碼</button>
+      <button class="sm-btn" onclick="exitMaintenanceMode()" data-i18n="btn_exit_maint" style="border-color:var(--accent2);color:var(--accent2);padding:6px 14px;font-size:12px">退出維護</button>
+    </div>
+  </div>
+  <div class="maint-shell">
+    <aside class="maint-sidebar">
+      <div class="form-group">
+        <label class="form-label">Dewar</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="form-select" id="m-dewar" onchange="renderMaintenancePage()" style="flex:1"></select>
+          <button type="button" class="sm-btn" onclick="openAddDewarModal()" data-i18n-title="title_add_dewar" title="新增 Dewar" style="white-space:nowrap;padding:8px 10px">＋</button>
+          <button type="button" class="sm-btn" onclick="promptRenameMaintenanceDewar()" data-i18n-title="title_rename_dewar" title="重新命名 Dewar" style="white-space:nowrap;padding:8px 10px">✎</button>
+          <button type="button" class="sm-btn" onclick="removeMaintenanceDewar()" data-i18n-title="title_remove_dewar" title="移除 Dewar" style="white-space:nowrap;padding:8px 10px">－</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rack</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select class="form-select" id="m-rack" onchange="renderMaintenancePage()" style="flex:1"></select>
+          <button type="button" class="sm-btn" onclick="promptRenameMaintenanceRack()" data-i18n-title="title_rename_rack" title="重新命名 Rack" style="white-space:nowrap;padding:8px 10px">✎</button>
+          <button type="button" class="sm-btn" onclick="batchRenameRacks()" data-i18n-title="title_switch_fmt" title="一鍵切換數字/字母" style="white-space:nowrap;padding:8px 10px">↔</button>
+          <button type="button" class="sm-btn" onclick="removeMaintenanceRack()" data-i18n-title="title_remove_rack" title="移除 Rack" style="white-space:nowrap;padding:8px 10px">－</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="form-label" style="margin:0" data-i18n="maint_box_label">Box（5 個）</span>
+          <button type="button" class="sm-btn" onclick="batchRenameBoxes()" data-i18n-title="title_switch_fmt" title="一鍵切換數字/字母" style="white-space:nowrap;padding:6px 10px">↔</button>
+        </div>
+        <div class="maint-box-list" id="maint-box-list"></div>
+        <button type="button" class="sm-btn" onclick="findMultipleRecords()" data-i18n="btn_find_multiple" style="margin-top:10px;width:100%;">📌 尋找多筆紀錄</button>
+        <button type="button" class="sm-btn" onclick="findGlobalDuplicates()" data-i18n="btn_find_global_duplicates" style="margin-top:8px;width:100%;background:var(--accent);color:white;border-color:var(--accent)">🔍 全域尋找重複</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="maint_banner_label">橫幅標題</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" class="form-input" id="maint-banner-input" style="font-size:13px;padding:7px 10px">
+          <button type="button" class="sm-btn" onclick="saveBannerText()" data-i18n="btn_save" style="border-color:var(--accent);color:var(--accent);white-space:nowrap;padding:7px 10px">儲存</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="maint_lang_label">預設介面語言</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="form-select" id="maint-lang-select" style="flex:1;font-size:13px;padding:7px 10px">
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+          </select>
+          <button type="button" class="sm-btn" onclick="saveDefaultLang()" data-i18n="btn_save" style="border-color:var(--accent);color:var(--accent);white-space:nowrap;padding:7px 10px">儲存</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="maint_help_label">說明</label>
+        <div class="hint" style="line-height:1.6" data-i18n="maint_help_text">滑鼠移到格子上查看資料。如有多筆資料，點擊後在右側選擇正確紀錄。</div>
+      </div>
+    </aside>
+    <div class="maint-main">
+      <div class="maint-search-row">
+        <div class="maint-search-label" data-i18n="maint_search_label">搜尋細胞</div>
+        <div class="maint-search-wrap">
+          <input class="form-input maint-search-input" id="maint-search-input" data-i18n-placeholder="ph_maint_search" placeholder="搜尋細胞名稱、來源、Passage 或位置" oninput="onMaintSearch(this.value)" onfocus="onMaintSearch(this.value)" autocomplete="off">
+          <button type="button" class="sm-btn" onclick="clearMaintSearch()" data-i18n-title="btn_clear" title="清除搜尋" data-i18n="btn_clear">清除</button>
+          <div class="maint-search-results" id="maint-search-results"></div>
+        </div>
+      </div>
+      <div class="maint-action-row">
+        <button type="button" class="sm-btn" id="maint-multiselect-toggle" onclick="toggleMaintMultiSelect()" data-i18n="btn_multi_register" style="white-space:nowrap">☰ 多格登錄</button>
+        <button type="button" class="sm-btn" id="maint-batch-edit-toggle" onclick="toggleMaintBatchEditSelect()" data-i18n="btn_batch_edit" style="white-space:nowrap;border-color:var(--accent2);color:var(--accent2)">✎ 批次修改</button>
+        <button type="button" class="sm-btn" id="maint-delete-toggle" onclick="toggleMaintDeleteSelect()" data-i18n="btn_multi_delete" style="white-space:nowrap;border-color:var(--danger);color:var(--danger)">✕ 多格刪除</button>
+      </div>
+      <div class="maint-legend" id="maint-legend">
+        <div class="maint-legend-item"><span class="maint-legend-swatch empty"></span> <span data-i18n="maint_legend_empty">空位</span></div>
+        <div class="maint-legend-item"><span class="maint-legend-swatch occupied"></span> <span data-i18n="maint_legend_occupied">已佔用</span></div>
+        <div class="maint-legend-item"><span class="maint-legend-swatch multiple"></span> <span data-i18n="maint_legend_multiple">同格重複紀錄</span></div>
+        <div class="maint-legend-item"><span class="maint-legend-swatch multi-selected"></span> <span data-i18n="maint_legend_selected">已選取</span></div>
+      </div>
+      <div class="maint-current-location">
+        <div id="maint-current-location">目前位置：Dewar 1 / Rack 1 / Box 1</div>
+        <div class="hint" id="maint-empty-count"></div>
+      </div>
+      <div class="maint-multiselect-bar" id="maint-multiselect-bar">
+        <span style="color:var(--warn);font-family:var(--mono);font-size:12px;font-weight:600" id="maint-multi-count">已選取 0 格</span>
+        <span style="color:var(--text-dim);font-size:12px" data-i18n="maint_multi_hint">— 點選空格以選取/取消；完成後點「登錄選取格子」</span>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <button type="button" class="sm-btn" onclick="clearMaintMultiSelect()" data-i18n="issue_clear_selected">清除選取</button>
+          <button type="button" class="sm-btn" onclick="confirmMaintMultiAdd()" data-i18n="btn_register_selected" style="border-color:var(--warn);color:var(--warn)">登錄選取格子</button>
+        </div>
+      </div>
+      <div class="maint-multiselect-bar" id="maint-delete-bar">
+        <span style="color:var(--danger);font-family:var(--mono);font-size:12px;font-weight:600" id="maint-delete-count">已選取 0 格</span>
+        <span style="color:var(--text-dim);font-size:12px" data-i18n="maint_delete_hint">— 點選已佔用格子以選取/取消；同格多筆紀錄會一起刪除</span>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <button type="button" class="sm-btn" onclick="clearMaintDeleteSelect()" data-i18n="issue_clear_selected">清除選取</button>
+          <button type="button" class="sm-btn" onclick="confirmMaintBatchDelete()" data-i18n="btn_delete_selected" style="border-color:var(--danger);color:var(--danger)">刪除選取紀錄</button>
+        </div>
+      </div>
+      <div class="maint-multiselect-bar" id="maint-batch-edit-bar">
+        <span style="color:var(--accent2);font-family:var(--mono);font-size:12px;font-weight:600" id="maint-batch-edit-count">已選取 0 格</span>
+        <span style="color:var(--text-dim);font-size:12px" data-i18n="maint_batch_hint">— 可切換 Dewar/Rack/Box 累積選取已佔用格子；只會修改有填寫的欄位</span>
+        <div style="display:flex;gap:8px;margin-left:auto">
+          <button type="button" class="sm-btn" onclick="clearMaintBatchEditSelect()" data-i18n="issue_clear_selected">清除選取</button>
+          <button type="button" class="sm-btn" onclick="confirmMaintBatchEdit()" data-i18n="btn_edit_selected" style="border-color:var(--accent2);color:var(--accent2)">修改選取紀錄</button>
+        </div>
+      </div>
+      <div class="maint-box-grid" id="maint-box-grid"></div>
+      <div class="maint-tooltip" id="maint-tooltip"></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">&#10003; <span id="toast-msg"></span></div>
+<div class="error-panel" id="error-panel">
+  <div class="error-panel-head">
+    <div class="error-panel-title">
+      <span id="error-panel-title" data-i18n="api_error_title">API 錯誤詳情</span>
+      <span class="error-panel-sub" data-i18n="error_panel_sub">訊息會停留在這裡，方便複製給 Codex</span>
+    </div>
+    <div class="error-panel-actions">
+      <button type="button" class="sm-btn" onclick="copyLastError()" data-i18n="btn_copy">複製</button>
+      <button type="button" class="sm-btn" onclick="hideErrorPanel()" data-i18n="btn_close">關閉</button>
+    </div>
+  </div>
+  <div class="error-panel-body" id="error-panel-body"></div>
+</div>
+
+<!-- Issue Report Modal -->
+<div class="modal-overlay" id="issue-report-modal">
+  <div class="modal issue-modal">
+    <div class="modal-title" style="color:var(--warn)" data-i18n="issue_modal_title">異常回報 / Issue Report</div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label class="form-label" data-i18n="issue_type_label">異常類型 *</label>
+        <select class="form-select" id="issue-type">
+          <option value="unknown_vial_in_empty_slot" data-i18n="issue_type_unknown_vial_in_empty_slot">空位發現未知凍管</option>
+          <option value="missing_expected_vial" data-i18n="issue_type_missing_expected_vial">應有凍管但找不到</option>
+          <option value="label_unclear" data-i18n="issue_type_label_unclear">標籤不清</option>
+          <option value="data_mismatch" data-i18n="issue_type_data_mismatch">資料不一致</option>
+          <option value="damaged_or_contaminated" data-i18n="issue_type_damaged_or_contaminated">凍管破損或污染疑慮</option>
+          <option value="other" data-i18n="issue_type_other">其他異常</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="issue_dewar_label">液態氮桶 DEWAR *</label>
+        <select class="form-select" id="issue-dewar"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Rack *</label>
+        <select class="form-select" id="issue-rack"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Box *</label>
+        <select class="form-select" id="issue-box" onchange="onIssueLocationChange()"></select>
+      </div>
+      <div class="form-group full">
+        <label class="form-label" data-i18n="issue_position_label">位置 POSITION *（可多選）</label>
+        <div class="issue-position-tools">
+          <span class="hint" id="issue-grid-location" data-i18n="issue_select_box_first">請先選擇 Box</span>
+          <button type="button" class="sm-btn" onclick="clearIssuePositions()" data-i18n="issue_clear_selected">清除選取</button>
+        </div>
+        <div class="issue-box-grid" id="issue-box-grid"></div>
+        <div class="hint" id="issue-selected-label" data-i18n="issue_selected_none">尚未選擇位置</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="issue_priority_label">優先度</label>
+        <select class="form-select" id="issue-priority">
+          <option value="normal" data-i18n="issue_priority_normal">一般</option>
+          <option value="high" data-i18n="issue_priority_high">高：需盡快處理</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="issue_operator_label">操作人員</label>
+        <input class="form-input" id="issue-operator" readonly>
+      </div>
+      <div class="form-group full">
+        <label class="form-label" data-i18n="issue_label_original">凍管標籤原文</label>
+        <input class="form-input" id="issue-label" placeholder="例：SAS P18 2024/10/03 YC">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="issue_cell_guess">疑似細胞系</label>
+        <input class="form-input" id="issue-cell-name" placeholder="例：SAS">
+      </div>
+      <div class="form-group">
+        <label class="form-label" data-i18n="issue_passage_date">Passage / 日期</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <input class="form-input" id="issue-passage" placeholder="P18">
+          <input class="form-input" id="issue-date" placeholder="2024/10/03">
+        </div>
+      </div>
+      <div class="form-group full">
+        <label class="form-label" data-i18n="issue_notes_label">現場備註</label>
+        <textarea class="form-textarea" id="issue-notes" placeholder="例：標籤部分脫落，管蓋藍色；資料庫顯示此格為空位。"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeIssueReportModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-primary" onclick="submitIssueReport()" data-i18n="issue_submit">送出回報</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Modal -->
+<div class="modal-overlay" id="admin-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:var(--warn)" data-i18n="admin_title">&#128272; 管理員驗證 / Admin Authentication</div>
+    <p id="admin-desc" style="font-size:13px;color:var(--text-dim);margin-bottom:16px" data-i18n="admin_desc">請輸入管理員帳號密碼。</p>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label" data-i18n="label_username">帳號 USERNAME</label>
+      <input class="form-input" id="admin-user" placeholder="admin" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_password">密碼 PASSWORD</label>
+      <input class="form-input" id="admin-pass" type="password" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') submitAdminAuth()">
+    </div>
+    <div id="admin-error" style="font-size:12px;color:var(--danger);font-family:var(--mono);margin-top:8px;display:none" data-i18n="admin_error">帳號或密碼錯誤</div>
+    <div id="admin-import-section" style="display:none;margin-top:14px">
+      <div class="divider"></div>
+      <label class="form-label" style="display:block;margin-bottom:6px" data-i18n="admin_csv_label">選擇 CSV 檔案</label>
+      <input type="file" id="admin-import-file" accept=".csv" style="font-size:13px;color:var(--text-mid);width:100%">
+      <div class="hint" style="margin-top:6px" data-i18n="admin_csv_hint">支援本系統匯出的細胞庫存 CSV 格式</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeAdminModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-primary" id="admin-confirm-btn" onclick="submitAdminAuth()" data-i18n="btn_confirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Name Modal -->
+<div class="modal-overlay" id="name-modal">
+  <div class="modal" style="max-width:380px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+      <div class="modal-title" style="color:var(--purple);margin:0" data-i18n="name_title">&#128100; 請輸入您的中文全名</div>
+      <button type="button" class="sm-btn" data-lang-toggle onclick="toggleLang()" title="Switch Language" style="flex:0 0 auto">EN</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px" data-i18n="name_desc">姓名將顯示於所有操作記錄中，儲存後記住於本裝置。請輸入中文全名（至少 2 個中文字）。</p>
+    <div class="form-group">
+      <label class="form-label" data-i18n="name_label">中文全名（例：王小明）</label>
+      <input class="form-input" id="name-input" data-i18n-placeholder="ph_name" placeholder="例：王小明"
+        onkeydown="if(event.key==='Enter') saveName()">
+      <div id="name-error" style="font-size:12px;color:var(--danger);font-family:var(--mono);margin-top:6px;display:none" data-i18n="name_error">請輸入至少 2 個中文字的全名</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="name-cancel-btn" onclick="closeNameModal()" style="display:none" data-i18n="btn_cancel">取消</button>
+      <button class="btn-primary" onclick="saveName()" data-i18n="btn_confirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal-overlay" id="change-password-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title" style="color:var(--warn)">&#128272; 變更管理員密碼 / Change Admin Password</div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px" data-i18n="change_password_desc">請輸入舊密碼和新密碼。</p>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label" data-i18n="label_old_password">舊密碼 Old Password</label>
+      <input class="form-input" id="old-password" type="password" placeholder="••••••••" autocomplete="off">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label class="form-label" data-i18n="label_new_password">新密碼 New Password</label>
+      <input class="form-input" id="new-password" type="password" placeholder="••••••••" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_confirm_password">確認新密碼 Confirm New Password</label>
+      <input class="form-input" id="confirm-password" type="password" placeholder="••••••••" autocomplete="off"
+        onkeydown="if(event.key==='Enter') changePassword()">
+    </div>
+    <div id="change-password-error" style="font-size:12px;color:var(--danger);font-family:var(--mono);margin-top:8px;display:none">錯誤訊息</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeChangePasswordModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-primary" onclick="changePassword()" data-i18n="btn_change_password">變更密碼</button>
+    </div>
+  </div>
+</div>
+
+<!-- Position Popup Modal -->
+<div class="modal-overlay" id="pos-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title" id="pos-modal-title" style="color:var(--danger)" data-i18n="pos_take_title">&#10052; 取出位置確認</div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:4px" id="pos-modal-sub"></p>
+    <div class="pos-detail" id="pos-modal-detail"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="document.getElementById('pos-modal').classList.remove('open')" data-i18n="btn_confirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cart floating action button -->
+<button type="button" class="cart-fab" id="cart-fab" onclick="openCartPanel()" title="" data-i18n-title="cart_floating_title" style="display:none">
+  &#128722;<span class="cart-fab-badge" id="cart-fab-badge">0</span>
+</button>
+
+<!-- Add to Cart Modal -->
+<div class="modal-overlay" id="cart-add-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-title" data-i18n="cart_add_title">&#128722; 加入購物車</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:10px" id="cart-add-cell-name"></div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="cart_add_qty_label">取出數量（支）</label>
+      <input class="form-input" id="cart-add-qty" type="number" min="1" value="1">
+      <div class="hint" id="cart-add-max-hint"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeCartAddModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-primary" onclick="confirmAddToCart()" data-i18n="btn_confirm_add_cart">加入購物車</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cart Panel Modal -->
+<div class="modal-overlay" id="cart-panel-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-title" data-i18n="cart_panel_title">&#128722; 購物車</div>
+    <div id="cart-panel-body"></div>
+  </div>
+</div>
+
+<!-- Cart Checkout Wizard Modal -->
+<div class="modal-overlay" id="cart-wizard-modal">
+  <div class="modal" style="width:560px;max-width:92vw" id="cart-wizard-body"></div>
+</div>
+
+<!-- Cart Take-Out Position Confirmation Modal -->
+<div class="modal-overlay" id="cart-pos-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-title" style="color:var(--danger)" data-i18n="pos_cart_title">&#10052; 購物車取出位置確認</div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:4px" data-i18n="pos_cart_sub">以下凍管已記錄取出，請至對應位置取管：</p>
+    <div class="pos-detail" id="cart-pos-modal-detail"></div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="document.getElementById('cart-pos-modal').classList.remove('open')" data-i18n="btn_confirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<div class="maint-modal-overlay" id="maint-edit-modal">
+  <div class="maint-modal">
+    <div class="maint-modal-header">
+      <div class="maint-modal-title" id="maint-modal-title" data-i18n="maint_modal_default_title">維護格子資料</div>
+      <button class="close-btn" onclick="closeMaintEditModal()">&#10005;</button>
+    </div>
+    <div class="maint-modal-body">
+      <div id="maint-records-list" class="maint-record-list"></div>
+      <div class="maint-form-grid">
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_name">細胞系名稱</label>
+          <input class="form-input" id="maint-edit-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_source">來源</label>
+          <select class="form-select" id="maint-edit-source" onchange="maintToggleOther('maint-edit-source','maint-edit-source-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="ATCC (預設)" data-i18n="opt_atcc_default">ATCC (預設)</option>
+            <option value="DSMZ">DSMZ</option>
+            <option value="BCRC">BCRC</option>
+            <option value="實驗室庫存凍回" data-i18n="opt_lab_stock">實驗室庫存凍回</option>
+            <option value="實驗室自行建立" data-i18n="opt_lab_self">實驗室自行建立</option>
+            <option value="其他實驗室贈送" data-i18n="opt_other_lab">其他實驗室贈送</option>
+            <option value="商業購買" data-i18n="opt_commercial">商業購買</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-source-other" data-i18n-placeholder="ph_other_source" placeholder="請輸入來源" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_passage">Passage</label>
+          <input class="form-input" id="maint-edit-passage">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_operator">操作人</label>
+          <select class="form-select" id="maint-edit-registrant" onchange="maintToggleOther('maint-edit-registrant','maint-edit-registrant-other')">
+            <option value="" data-i18n="maint_op_select">-- 請選擇操作人 --</option>
+            <option value="other" data-i18n="opt_other_manual">其他（手動輸入）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-registrant-other" data-i18n-placeholder="ph_operator_name" placeholder="請輸入姓名（將新增至名單）" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_operation_date">操作日期</label>
+          <div style="display:flex;gap:6px">
+            <select class="form-select" id="maint-date-year" onchange="maintUpdateDays()" style="flex:3">
+              <option value="" data-i18n="opt_year">年</option>
+            </select>
+            <select class="form-select" id="maint-date-month" onchange="maintUpdateDays()" style="flex:2">
+              <option value="" data-i18n="opt_month">月</option>
+              <option value="1" data-i18n="month_1">1 月</option>
+              <option value="2" data-i18n="month_2">2 月</option>
+              <option value="3" data-i18n="month_3">3 月</option>
+              <option value="4" data-i18n="month_4">4 月</option>
+              <option value="5" data-i18n="month_5">5 月</option>
+              <option value="6" data-i18n="month_6">6 月</option>
+              <option value="7" data-i18n="month_7">7 月</option>
+              <option value="8" data-i18n="month_8">8 月</option>
+              <option value="9" data-i18n="month_9">9 月</option>
+              <option value="10" data-i18n="month_10">10 月</option>
+              <option value="11" data-i18n="month_11">11 月</option>
+              <option value="12" data-i18n="month_12">12 月</option>
+            </select>
+            <select class="form-select" id="maint-date-day" style="flex:2">
+              <option value="" data-i18n="opt_day">日</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_species">物種</label>
+          <select class="form-select" id="maint-edit-species" onchange="maintToggleOther('maint-edit-species','maint-edit-species-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="Human（人類）" data-i18n="opt_human">Human（人類）</option>
+            <option value="Mouse（小鼠）" data-i18n="opt_mouse">Mouse（小鼠）</option>
+            <option value="Rat（大鼠）" data-i18n="opt_rat">Rat（大鼠）</option>
+            <option value="Other" data-i18n="opt_other">Other</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-species-other" data-i18n-placeholder="ph_other_species" placeholder="請輸入物種" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_tissue">組織</label>
+          <input class="form-input" id="maint-edit-tissue">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_genotype">基因型</label>
+          <input class="form-input" id="maint-edit-genotype">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_cryoprotectant">凍存液</label>
+          <select class="form-select" id="maint-edit-cryoprotectant" onchange="maintToggleOther('maint-edit-cryoprotectant','maint-edit-cryoprotectant-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="7% DMSO + DMEM">7% DMSO + DMEM</option>
+            <option value="10% DMSO + DMEM">10% DMSO + DMEM</option>
+            <option value="90% FBS + 10% DMSO">90% FBS + 10% DMSO</option>
+            <option value="BAMBANKER">BAMBANKER</option>
+            <option value="CryoStor CS10">CryoStor CS10</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-cryoprotectant-other" data-i18n-placeholder="ph_other_cryo" placeholder="請輸入凍存液配方" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_medium">培養基</label>
+          <select class="form-select" id="maint-edit-medium" onchange="maintToggleOther('maint-edit-medium','maint-edit-medium-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="DMEM">DMEM</option>
+            <option value="DMEM/F-12">DMEM/F-12</option>
+            <option value="RPMI-1640">RPMI-1640</option>
+            <option value="MEM">MEM</option>
+            <option value="McCoy's 5A">McCoy's 5A</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-medium-other" data-i18n-placeholder="ph_other_medium" placeholder="請輸入培養基名稱" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_serum">血清</label>
+          <select class="form-select" id="maint-edit-serum" onchange="maintToggleOther('maint-edit-serum','maint-edit-serum-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="10% FBS">10% FBS</option>
+            <option value="5% FBS">5% FBS</option>
+            <option value="20% FBS">20% FBS</option>
+            <option value="No serum" data-i18n="opt_no_serum">無血清</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-serum-other" data-i18n-placeholder="ph_other_serum" placeholder="請輸入血清條件" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_abx">抗生素</label>
+          <select class="form-select" id="maint-edit-abx" onchange="maintToggleOther('maint-edit-abx','maint-edit-abx-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="100 U/mL Pen/Strep">100 U/mL Pen/Strep</option>
+            <option value="None" data-i18n="opt_none">不使用</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-abx-other" data-i18n-placeholder="ph_other_abx" placeholder="請輸入抗生素條件" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-i18n="maint_label_selection">選擇壓力</label>
+          <select class="form-select" id="maint-edit-selection" onchange="maintToggleOther('maint-edit-selection','maint-edit-selection-other')">
+            <option value="" data-i18n="opt_choose_dash">-- 請選擇 --</option>
+            <option value="None" data-i18n="opt_none">不使用</option>
+            <option value="1 μg/mL Puromycin">1 μg/mL Puromycin</option>
+            <option value="500 μg/mL G418">500 μg/mL G418</option>
+            <option value="10 μg/mL Blasticidin">10 μg/mL Blasticidin</option>
+            <option value="200 μg/mL Hygromycin">200 μg/mL Hygromycin</option>
+            <option value="other" data-i18n="opt_other_fill">其他（請填寫）</option>
+          </select>
+          <input class="form-input other-input" id="maint-edit-selection-other" data-i18n-placeholder="ph_other_selection" placeholder="請輸入選擇壓力條件" style="display:none;margin-top:6px">
+        </div>
+        <div class="form-group full">
+          <label class="form-label" data-i18n="maint_label_qc_notes">QC 備註</label>
+          <textarea class="form-textarea" id="maint-edit-qc-notes" rows="2"></textarea>
+        </div>
+        <div class="form-group full">
+          <label class="form-label" data-i18n="maint_label_notes">備註</label>
+          <textarea class="form-textarea" id="maint-edit-notes" rows="3"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="maint-modal-actions">
+      <button class="btn-secondary" onclick="closeMaintEditModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-danger" onclick="deleteMaintRecord()" id="maint-delete-btn" data-i18n="btn_delete_record" style="display:none;">刪除記錄</button>
+      <button class="btn-primary" onclick="saveMaintEdit()" data-i18n="btn_save_changes">儲存修改</button>
+    </div>
+  </div>
+</div>
+
+<div class="maint-modal-overlay" id="global-duplicates-modal">
+  <div class="maint-modal" style="max-width:900px;max-height:80vh">
+    <div class="maint-modal-header">
+      <div class="maint-modal-title" id="global-duplicates-title" data-i18n="dup_modal_title">全域重複記錄管理</div>
+      <button class="close-btn" onclick="closeGlobalDuplicatesModal()">&#10005;</button>
+    </div>
+    <div class="maint-modal-body" style="padding:0">
+      <div id="global-duplicates-content" style="max-height:60vh;overflow-y:auto;padding:20px">
+        <!-- 重複記錄列表將動態生成 -->
+      </div>
+    </div>
+    <div class="maint-modal-actions">
+      <button class="btn-secondary" onclick="closeGlobalDuplicatesModal()" data-i18n="btn_close">關閉</button>
+      <button class="btn-danger" onclick="batchDeleteSelectedDuplicates()" id="batch-delete-btn" data-i18n="btn_batch_delete_selected" style="display:none;">批次刪除選取項目</button>
+    </div>
+  </div>
+</div>
+
+<script src="assets/js/00-state.js?v=20260709-b"></script>
+<script src="assets/js/01-utils.js?v=20260709-b"></script>
+<script src="assets/js/02-api.js?v=20260709-b"></script>
+<script src="assets/js/03-config.js?v=20260709-b"></script>
+<script src="assets/js/04-ui-core.js?v=20260709-b"></script>
+<script src="assets/js/05-search-access.js?v=20260709-b"></script>
+<script src="assets/js/06-register.js?v=20260709-b"></script>
+<script src="assets/js/07-maintenance.js?v=20260709-b"></script>
+<script src="assets/js/08-csv-admin.js?v=20260709-b"></script>
+<script src="assets/js/09-issues.js?v=20260709-b"></script>
+<script src="assets/js/10-cart.js?v=20260709-b"></script>
+<script src="assets/js/09-init.js?v=20260709-b"></script>
+
+<div class="modal-overlay" id="add-dewar-modal">
+  <div class="modal-box" style="max-width:400px;display:flex;flex-direction:column;gap:14px">
+    <div class="modal-title" data-i18n="add_dewar_title">新增液態氮桶 / Add Dewar</div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_dewar_name">名稱 NAME *</label>
+      <input class="form-input" id="add-dewar-name" data-i18n-placeholder="ph_add_dewar_name" placeholder="例：Dewar 2">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_rack_count">Rack 數量</label>
+      <input class="form-input" id="add-dewar-racks" type="number" min="1" max="20" value="6">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_box_per_rack">每個 Rack 的 Box 數量</label>
+      <input class="form-input" id="add-dewar-boxes" type="number" min="1" max="30" value="5">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label_grid_size">Box 格子大小（N × N）</label>
+      <input class="form-input" id="add-dewar-grid" type="number" min="2" max="12" value="5">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn-outline" onclick="closeAddDewarModal()" data-i18n="btn_cancel">取消</button>
+      <button class="btn-purple" onclick="confirmAddDewar()" data-i18n="btn_confirm_add">確認新增</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

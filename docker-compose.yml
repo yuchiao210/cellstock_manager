@@ -1,0 +1,20 @@
+services:
+  cellstock:
+    build: .
+    container_name: cellstock-manager
+    restart: unless-stopped
+    ports:
+      - "${CELLSTOCK_HTTP_PORT:-8080}:80"
+    environment:
+      CELLSTOCK_DB_PATH: /data/cellstock.sqlite
+      CELLSTOCK_ADMIN_USERNAME: ${CELLSTOCK_ADMIN_USERNAME:-admin}
+      CELLSTOCK_ADMIN_PASSWORD: ${CELLSTOCK_ADMIN_PASSWORD:?Please set CELLSTOCK_ADMIN_PASSWORD in .env}
+      CELLSTOCK_LAB_NAME: ${CELLSTOCK_LAB_NAME:-FCT lab}
+      CELLSTOCK_DEFAULT_LANG: ${CELLSTOCK_DEFAULT_LANG:-en}
+    volumes:
+      - cellstock-data:/data
+      - cellstock-backups:/var/www/html/backups
+
+volumes:
+  cellstock-data:
+  cellstock-backups:

@@ -1,0 +1,10 @@
+.env
+.DS_Store
+**/.DS_Store
+*.sqlite
+*.sqlite-*
+backups/
+app/backups/
+.git/
+.claude/
+__MACOSX/
