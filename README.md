@@ -24,16 +24,20 @@ Cell Stock Manager replaces Excel with a lightweight, self-hostable web app. Eve
 - **Issue Queue**: flag and track data discrepancies (e.g. records that don't match reality) for follow-up
 - **Maintenance Mode**: admin-only features for data maintenance and system configuration
 
-## Screenshots
+## Demo
 
 <table>
 <tr>
-<td><img src="screenshots/firstlogin.png" width="400"><br>First use: enter operator name</td>
-<td><img src="screenshots/search-page.png" width="400"><br>Search / Access</td>
+<td align="center"><img src="demo/search-cells.gif" width="700"><br>Search / Access</td>
 </tr>
 <tr>
-<td><img src="screenshots/register-page.png" width="400"><br>Register New Cell Line</td>
-<td><img src="screenshots/maintenance-mode.png" width="400"><br>Maintenance Mode: visual Dewar / Rack / Box management</td>
+<td align="center"><img src="demo/register-new-cells.gif" width="700"><br>Register New Cell Line</td>
+</tr>
+<tr>
+<td align="center"><img src="demo/maintenance.gif" width="700"><br>Maintenance Mode: Dewar / Rack / Box management</td>
+</tr>
+<tr>
+<td align="center"><img src="demo/report-issue.gif" width="700"><br>Report Issue</td>
 </tr>
 </table>
 
